@@ -142,6 +142,10 @@ func LoadMap(labyrinth *Labyrinth, filename string) error {
 	if err != nil {
 		return err
 	}
+	// 如果地图过大，则返回错误
+	if len(lines) > MaxRows || len(lines[0]) > MaxCols {
+		return errors.New("map is too large")
+	}
 	// 3. 将每行转换为 rune 切片
 	runes := make([][]rune, len(lines))
 	for i, line := range lines {
