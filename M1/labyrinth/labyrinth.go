@@ -123,7 +123,10 @@ func printUsage() {
 // IsValidPlayer 检查玩家ID是否有效（0-9）
 func IsValidPlayer(playerID string) bool {
 	// 提示：玩家ID应该是 '0' 到 '9' 之间的字符
-	num, _ := strconv.Atoi(playerID)
+	num, err := strconv.ParseInt(playerID, 10, 64)
+	if err != nil {
+		return false
+	}
 	if 0 <= num && num <= 9 {
 		return true
 	}
