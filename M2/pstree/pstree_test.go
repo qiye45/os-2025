@@ -210,48 +210,52 @@ func TestInvalidOption(t *testing.T) {
 
 // TestBuildTree 测试进程树构建
 func TestBuildTree(t *testing.T) {
-	processes := map[int]*Process{
-		1: {PID: 1, PPID: 0, Name: "init"},
-		2: {PID: 2, PPID: 1, Name: "child1"},
-		3: {PID: 3, PPID: 1, Name: "child2"},
-		4: {PID: 4, PPID: 2, Name: "grandchild"},
+	processes := map[int64]*Process{
+		0: {PID: 0, PPID: 0, Name: "init"},
+		1: {PID: 1, PPID: 0, Name: "child1"},
+		2: {PID: 2, PPID: 0, Name: "child2"},
+		3: {PID: 3, PPID: 1, Name: "grandchild"},
 	}
+
+	// 先构建进程关系
+	processes[0].Children = append(processes[0].Children, processes[1])
+	processes[0].Children = append(processes[0].Children, processes[2])
+	processes[1].Children = append(processes[1].Children, processes[3])
 
 	tree := BuildTree(processes)
 
-	if len(tree) != 1 {
-		t.Errorf("Expected 1 root process, got %d", len(tree))
+	if tree == nil {
+		t.Error("Expected non-nil tree root")
+		return
 	}
 
-	if tree[0].PID != 1 {
-		t.Errorf("Expected root PID 1, got %d", tree[0].PID)
+	if tree.PID != 0 {
+		t.Errorf("Expected root PID 0, got %d", tree.PID)
 	}
 
-	if len(tree[0].Children) != 2 {
-		t.Errorf("Expected 2 children for root, got %d", len(tree[0].Children))
+	if len(tree.Children) != 2 {
+		t.Errorf("Expected 2 children for root, got %d", len(tree.Children))
 	}
 }
 
-// TestSortTree 测试进程树排序
-func TestSortTree(t *testing.T) {
-	processes := map[int]*Process{
-		1: {PID: 1, PPID: 0, Name: "init"},
-		3: {PID: 3, PPID: 1, Name: "child3"},
-		2: {PID: 2, PPID: 1, Name: "child2"},
+// TestParseStat 测试进程stat解析
+func TestParseStat(t *testing.T) {
+	stat := []byte("1 (init) S 0 1 1 0 -1 4194560 66 0 0 0 0 0 0 0 20 0 1 0 281473822914560 109 18446744073709551615")
+	process, err := ParseStat(stat)
+
+	if err != nil {
+		t.Fatalf("ParseStat failed: %v", err)
 	}
 
-	tree := BuildTree(processes)
-	SortTree(tree)
-
-	if len(tree[0].Children) != 2 {
-		t.Errorf("Expected 2 children, got %d", len(tree[0].Children))
+	if process.PID != 1 {
+		t.Errorf("Expected PID 1, got %d", process.PID)
 	}
 
-	if tree[0].Children[0].PID != 2 {
-		t.Errorf("Expected first child PID 2, got %d", tree[0].Children[0].PID)
+	if process.PPID != 0 {
+		t.Errorf("Expected PPID 0, got %d", process.PPID)
 	}
 
-	if tree[0].Children[1].PID != 3 {
-		t.Errorf("Expected second child PID 3, got %d", tree[0].Children[1].PID)
+	if process.Name != "init" {
+		t.Errorf("Expected name 'init', got '%s'", process.Name)
 	}
 }

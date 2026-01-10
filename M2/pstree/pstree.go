@@ -1,9 +1,11 @@
 package main
 
 import (
+	"container/list"
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -17,14 +19,75 @@ type Process struct {
 	Children []*Process
 }
 
+type Node struct {
+	count  int
+	isLast bool
+}
+
+func (n Node) String() string {
+	return fmt.Sprintf("%d,%v", n.count, n.isLast)
+}
+
 var (
 	row int64 = 0
 )
 
+type Deque struct {
+	list list.List
+	m    map[int]*Node
+}
+
+func (d *Deque) PushBack(x int, isLast bool) {
+	_, ok := d.m[x]
+	if !ok {
+		d.m[x] = &Node{
+			count:  0,
+			isLast: isLast,
+		}
+	}
+	d.m[x].count += 1
+	d.list.PushBack(x)
+}
+
+// PopBack 注意传指针
+// 使用值接收者时，它修改的是 deque 的副本，而不是原始对象
+func (d *Deque) PopBack() {
+	if d.list.Len() == 0 {
+		return
+	}
+	tmp := d.list.Back()
+	d.list.Remove(tmp)
+	value, ok := tmp.Value.(int)
+	if !ok {
+		return
+	}
+	d.m[value].count -= 1
+	if d.m[value].count == 0 {
+		delete(d.m, value)
+	}
+}
+func (d *Deque) Get(x int) *Node {
+	value, ok := d.m[x]
+	if !ok {
+		return &Node{}
+	}
+	return value
+}
+
+func (d *Deque) GetMax() int {
+	tmp := -1
+	for k, v := range d.m {
+		if v.count > 0 {
+			tmp = max(tmp, k)
+		}
+	}
+	return tmp
+}
+
 func main() {
-	showPids := flag.Bool("p", true, "Show PIDs")
+	showPids := flag.Bool("p", false, "Show PIDs")
 	showPidsLong := flag.Bool("show-pids", false, "Show PIDs")
-	numericSort := flag.Bool("n", true, "Sort by PID")
+	numericSort := flag.Bool("n", false, "Sort by PID")
 	numericSortLong := flag.Bool("numeric-sort", false, "Sort by PID")
 	version := flag.Bool("V", false, "Show version")
 	versionLong := flag.Bool("version", false, "Show version")
@@ -46,13 +109,16 @@ func main() {
 
 	processes, err := ReadProcesses()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading processes: %v\n", err)
+		_, err := fmt.Fprintf(os.Stderr, "Error reading processes: %v\n", err)
+		if err != nil {
+			return
+		}
 		os.Exit(1)
 	}
 
 	tree := BuildTree(processes)
-	symbolList := make([]int, 0)
-	PrintTree(tree.Children[0], 0, &symbolList, showPid, sortByPid, true, true)
+	symbolList := Deque{list: list.List{}, m: make(map[int]*Node)}
+	PrintTree(tree.Children[0], 0, &symbolList, showPid, sortByPid, true, true, false)
 	os.Exit(0)
 }
 
@@ -153,8 +219,15 @@ func BuildTree(processes map[int64]*Process) *Process {
 	return processes[0]
 }
 
+func SortByPid(processes []*Process) []*Process {
+	sort.SliceIsSorted(processes, func(i, j int) bool {
+		return processes[i].PID < processes[j].PID
+	})
+	return processes
+}
+
 // PrintTree 打印进程树，DFS
-func PrintTree(root *Process, prefix int, symbolList *[]int, showPid bool, isSort bool, isFront bool, isStart bool) {
+func PrintTree(root *Process, prefix int, symbolList *Deque, showPid, isSort, isFront, isTreeStart, isLeafLast bool) {
 	// 提示：
 	// 1. 遍历根进程列表
 	// 2. 打印当前进程（使用 prefix 控制缩进）
@@ -171,19 +244,41 @@ func PrintTree(root *Process, prefix int, symbolList *[]int, showPid bool, isSor
 	}
 	prefixSpace = len(text)
 	if isFront {
-		if isStart {
+		if isTreeStart {
 			fmt.Printf("%s%s", strings.Repeat(" ", 0), text)
 		} else {
-			fmt.Printf("%s%s", strings.Repeat(" ", 4), text)
+			fmt.Printf("%s%s", strings.Repeat("─", 4), text)
 		}
 		newPrefix = prefix + prefixSpace + 4
 	} else {
 		fmt.Println("")
-		fmt.Printf("%s%s", strings.Repeat(" ", prefix), text)
+		//fmt.Println(symbolList.m)
+		for i := 0; i < prefix; i++ {
+			if i == symbolList.GetMax()-2 {
+				if isLeafLast {
+					fmt.Printf("└")
+				} else {
+					fmt.Printf("├")
+				}
+			} else if i > symbolList.GetMax()-2 {
+				fmt.Printf("─")
+			} else if node := symbolList.Get(i + 2); node.count > 0 && node.isLast == false {
+				fmt.Printf("│")
+			} else {
+				fmt.Printf(" ")
+			}
+		}
+		fmt.Printf("%s", text)
 		row += 1
 		newPrefix = prefix + prefixSpace + 4
 	}
+	if isSort {
+		root.Children = SortByPid(root.Children)
+	}
 	for i, child := range root.Children {
-		PrintTree(child, newPrefix, symbolList, showPid, isSort, i == 0, false)
+		isLast := i == len(root.Children)-1
+		symbolList.PushBack(newPrefix, isLast)
+		PrintTree(child, newPrefix, symbolList, showPid, isSort, i == 0, false, isLast)
+		symbolList.PopBack()
 	}
 }

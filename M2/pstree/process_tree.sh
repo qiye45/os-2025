@@ -6,8 +6,8 @@ SCRIPT_NAME=$(basename "$0")
 # 基础名称，用于过滤和显示
 BASE_NAME="${SCRIPT_NAME%.*}"
 
-# 运行总时长：30分钟
-DURATION=1800
+# 运行总时长：60分钟
+DURATION=3600
 
 # 目标设定
 MAX_DEPTH=3           # 最大递归深度
