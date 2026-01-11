@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os/exec"
 	"strings"
 	"testing"
@@ -12,10 +13,9 @@ func runPstree(args ...string) (string, int, error) {
 	output, err := cmd.CombinedOutput()
 	exitCode := 0
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode = exitErr.ExitCode()
-		} else {
-			return "", -1, err
 		}
 	}
 	return string(output), exitCode, nil

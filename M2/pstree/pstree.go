@@ -28,10 +28,6 @@ func (n Node) String() string {
 	return fmt.Sprintf("%d,%v", n.count, n.isLast)
 }
 
-var (
-	row int64 = 0
-)
-
 type Deque struct {
 	list list.List
 	m    map[int]*Node
@@ -109,7 +105,7 @@ func main() {
 
 	processes, err := ReadProcesses()
 	if err != nil {
-		_, err := fmt.Fprintf(os.Stderr, "Error reading processes: %v\n", err)
+		_, err = fmt.Fprintf(os.Stderr, "Error reading processes: %v\n", err)
 		if err != nil {
 			return
 		}
@@ -148,10 +144,6 @@ func ReadProcesses() (map[int64]*Process, error) {
 		}
 		pid := dir.Name()
 		statPath := fmt.Sprintf("/proc/%s/stat", pid)
-		statFile, err := os.Open(statPath)
-		if err != nil {
-			continue
-		}
 		stat, err := os.ReadFile(statPath)
 		if err != nil {
 			continue
@@ -166,10 +158,6 @@ func ReadProcesses() (map[int64]*Process, error) {
 		} else {
 			unhandled[process.PID] = process
 		}
-		err = statFile.Close()
-		if err != nil {
-			return nil, err
-		}
 	}
 	fmt.Println("unhandled processes:", len(unhandled))
 	for _, process := range unhandled {
@@ -177,7 +165,7 @@ func ReadProcesses() (map[int64]*Process, error) {
 			processes[process.PPID].Children = append(processes[process.PPID].Children, process)
 		} else {
 			// 孤儿进程
-			processes[0] = process
+			processes[0].Children = append(processes[0].Children, process)
 			orphanProcessCount += 1
 		}
 	}
@@ -197,8 +185,7 @@ func ParseStat(stat []byte) (*Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	name := strings.TrimLeft(fields[1], "(")
-	name = strings.TrimRight(name, ")")
+	name := strings.Trim(fields[1], "()")
 	return &Process{
 		PID:  pid,
 		PPID: ppid,
@@ -220,7 +207,7 @@ func BuildTree(processes map[int64]*Process) *Process {
 }
 
 func SortByPid(processes []*Process) []*Process {
-	sort.SliceIsSorted(processes, func(i, j int) bool {
+	sort.Slice(processes, func(i, j int) bool {
 		return processes[i].PID < processes[j].PID
 	})
 	return processes
@@ -245,7 +232,7 @@ func PrintTree(root *Process, prefix int, symbolList *Deque, showPid, isSort, is
 	prefixSpace = len(text)
 	if isFront {
 		if isTreeStart {
-			fmt.Printf("%s%s", strings.Repeat(" ", 0), text)
+			fmt.Printf("%s", text)
 		} else {
 			fmt.Printf("%s%s", strings.Repeat("─", 4), text)
 		}
@@ -269,7 +256,6 @@ func PrintTree(root *Process, prefix int, symbolList *Deque, showPid, isSort, is
 			}
 		}
 		fmt.Printf("%s", text)
-		row += 1
 		newPrefix = prefix + prefixSpace + 4
 	}
 	if isSort {
