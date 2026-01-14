@@ -52,9 +52,9 @@ int fib(int n) { if (n <= 1) return 1; return fib(n - 1) + fib(n - 2); }
 
 ```
 $ ./crepl
->> int gcd(int a, int b) { return b ? gcd(b, a % b) : a; } ↵
+>> int gcd(int a, int b) { return b ? gcd(b, a % b) : a; }
 OK.
->> gcd(256, 144) * gcd(56, 84) ↵
+>> gcd(256, 144) * gcd(56, 84)
 = 448.
 ```
 
