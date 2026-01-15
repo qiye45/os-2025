@@ -90,6 +90,7 @@ func handleInput(line string, id int) {
 		content = line
 	} else {
 		funcName = fmt.Sprintf("wrapper_%d", id)
+		// 添加函数声明，解决编译报错
 		var declarations string
 		for _, decl := range definedFunctions {
 			declarations += decl + "\n"
@@ -154,7 +155,7 @@ func compileToSharedLib(srcFile, soFile string) error {
 	// 参数: -x c -fPIC -shared -w -o soFile srcFile
 	args := []string{"-x", "c", "-fPIC", "-shared", "-w", "-o", soFile, srcFile}
 
-	// 添加库搜索路径
+	// 添加库搜索路径，解决链接错误
 	if len(loadedSoFiles) > 0 {
 		args = append(args, "-L./tmp")
 	}
