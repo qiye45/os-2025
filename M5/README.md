@@ -1,6 +1,3 @@
-根据您提供的参考资料，以下是完善后的 [`M5/README.md`](M5/README.md:1) 内容：
-
-```markdown
 # M5: 并行内存分配器 (mymalloc)
 
 ## 1. 背景
