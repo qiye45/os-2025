@@ -10,7 +10,7 @@
 | M2 | pstree | 打印进程树 | [M2/](M2/) | ✅ |
 | M3 | sperf | 系统调用性能分析器 | [M3/](M3/) | ✅ |
 | M4 | crepl | C 语言 REPL | [M4/](M4/) | ✅ |
-| M5 | mymalloc | 并行内存分配器 | [M5/](M5/) | ⬜ |
+| M5 | mymalloc | 并行内存分配器 | [M5/](M5/) | ✅ |
 | M6 | gpt.c | GPT-2 并行推理 | [M6/](M6/) | ⬜ |
 | M7 | httpd | 多线程 HTTP 服务器 | [M7/](M7/) | ⬜ |
 | M8 | fsrecov | FAT32 文件系统恢复 | [M8/](M8/) | ⬜ |
