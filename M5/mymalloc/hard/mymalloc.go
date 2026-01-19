@@ -101,6 +101,7 @@ func getFixSize(size int) (int, int) {
 // Mymalloc 分配 size 字节的内存
 // 返回 8 字节对齐的内存地址，失败返回 nil
 func Mymalloc(size int) unsafe.Pointer {
+	// 1828 ns/op -> 1089 ns/op
 	if size <= 0 {
 		return nil
 	}

@@ -71,3 +71,4 @@ go.work.sum
 # env file
 .env
 
+/M6/gpt/gpt2_124M.bin
