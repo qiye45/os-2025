@@ -538,6 +538,10 @@ func sampleMult(probabilities []float32, n int) int {
 
 const GPT2_EOT = 50256
 
+// old
+// BenchmarkInference-10      5      4903037200 ns/op      1043049496 B/op       30 allocs/op
+// new
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Provide at least one token.")
