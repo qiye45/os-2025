@@ -63,3 +63,23 @@ gentlemen, we are gathered here today to honor the memory of our beloved friend,
 Online Judge 评测时，`k ≤ 4`。对于真实的神经网络训练/推导系统，GPU 这类 SIMT 的大规模并行处理器在能耗比上相比 CPU 有巨大的优势。回顾课程中讲解 SIMT 时，一个线程束共享一个 Program Counter，控制多个线程 "同步" 执行指令。此时，针对大矩阵、向量的 load/store，一个线程束就会生成一个非常长的内存 load (coalesced memory access)。GPU 也为这样的内存访问模式做出了特别的优化——相比 CPU 对 "逻辑程序" 设计的 memory hierarchy，具有高得多的电路比和能效比。
 
 在这个实验中，你需要静态分配好线程 (例如 4 个 workers)，然后由这些线程完成计算任务。Online Judge 测试时的线程库与同学们实验代码中的完全一样。
+
+## 4.效果对比
+```text
+cpu: Intel(R) Xeon(R) CPU E5-2680 v3 @ 2.50GHz
+core count : 5
+
+old
+BenchmarkInference-5           5        14020524492 ns/op       1043048820 B/op       30 allocs/op
+
+new 内层 go func
+BenchmarkInference-5           5        6090141876 ns/op        1934038065 B/op 11722391 allocs/op
+
+new 按OC以cpuNum分块并行
+BenchmarkInference-5           5        3260274354 ns/op        1043401528 B/op     4346 allocs/op
+
+new 工作池
+BenchmarkInference-5           5        3288324852 ns/op        1043370776 B/op     2207 allocs/op
+
+loaded model : 1113061623 ns/op 
+```

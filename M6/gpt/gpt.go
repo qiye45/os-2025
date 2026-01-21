@@ -2,10 +2,15 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
 	"fmt"
+	"log"
 	"math"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	"strconv"
+	"sync"
 )
 
 // ParameterTensors 模型参数
@@ -133,26 +138,85 @@ func layernormForward(out, mean, rstd, inp, weight, bias []float32, B, T, C int)
 	}
 }
 
+//func matmulForward(out, inp, weight, bias []float32, B, T, C, OC int) {
+//	// inp is (B,T,C), weight is (OC, C), bias is (OC)
+//	// out will be (B,T,OC)
+//	for b := 0; b < B; b++ {
+//		for t := 0; t < T; t++ {
+//			outBt := out[b*T*OC+t*OC:]
+//			inpBt := inp[b*T*C+t*C:]
+//			for o := 0; o < OC; o++ {
+//				val := float32(0.0)
+//				if bias != nil {
+//					val = bias[o]
+//				}
+//				wrow := weight[o*C:]
+//				for i := 0; i < C; i++ {
+//					val += inpBt[i] * wrow[i]
+//				}
+//				outBt[o] = val
+//			}
+//		}
+//	}
+//}
+
+type WorkerPool struct {
+	numWorkers int
+	tasks      chan func()
+	wg         sync.WaitGroup
+}
+
+func NewWorkerPool(num int) *WorkerPool {
+	pool := &WorkerPool{
+		numWorkers: num,
+		tasks:      make(chan func(), 1000), // 缓冲任务队列
+	}
+
+	for i := 0; i < num; i++ {
+		go pool.worker()
+	}
+	return pool
+}
+func (p *WorkerPool) worker() {
+	for task := range p.tasks {
+		task()
+	}
+}
+
+func (p *WorkerPool) submit(task func()) {
+	p.wg.Add(1)
+	p.tasks <- task
+}
+func (p *WorkerPool) wait() {
+	p.wg.Wait()
+}
+
+// matmulForwardParallel
 func matmulForward(out, inp, weight, bias []float32, B, T, C, OC int) {
 	// inp is (B,T,C), weight is (OC, C), bias is (OC)
 	// out will be (B,T,OC)
 	for b := 0; b < B; b++ {
 		for t := 0; t < T; t++ {
-			outBt := out[b*T*OC+t*OC:]
-			inpBt := inp[b*T*C+t*C:]
-			for o := 0; o < OC; o++ {
-				val := float32(0.0)
-				if bias != nil {
-					val = bias[o]
+			pool.submit(func() {
+				// 1.22 之前版本需要手动 b, t := b, t 创建局部变量，避免闭包捕获外部(循环)变量：当 goroutine 实际执行时，`b` 和 `t` 已经变成了循环结束后的值，超出了 `out` 切片的边界，触发 panic
+				defer pool.wg.Done()
+				outBt := out[b*T*OC+t*OC:]
+				inpBt := inp[b*T*C+t*C:]
+				for o := 0; o < OC; o++ {
+					val := float32(0.0)
+					if bias != nil {
+						val = bias[o]
+					}
+					wrow := weight[o*C:]
+					for i := 0; i < C; i++ {
+						val += inpBt[i] * wrow[i]
+					}
+					outBt[o] = val
 				}
-				wrow := weight[o*C:]
-				for i := 0; i < C; i++ {
-					val += inpBt[i] * wrow[i]
-				}
-				outBt[o] = val
-			}
+			})
 		}
 	}
+	pool.wait()
 }
 
 func attentionForward(out, preatt, att, inp []float32, B, T, C, NH int) {
@@ -538,18 +602,38 @@ func sampleMult(probabilities []float32, n int) int {
 
 const GPT2_EOT = 50256
 
-// old
-// BenchmarkInference-10      5      4903037200 ns/op      1043049496 B/op       30 allocs/op
-// new
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+var numCPU int
+var pool *WorkerPool
 
 func main() {
-	if len(os.Args) < 2 {
+	args := os.Args[1:]
+
+	// 启动CPU profiling
+	flag.Parse()
+	numCPU = runtime.NumCPU()
+	pool = NewWorkerPool(numCPU)
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal(err)
+		}
+		defer pprof.StopCPUProfile()
+		args = args[1:]
+	}
+
+	if len(args) < 1 {
 		fmt.Println("Provide at least one token.")
 		os.Exit(1)
 	}
 
 	const n = 10
-	if len(os.Args) > n+1 {
+	if len(args) > n+1 {
 		fmt.Println("Too many tokens.")
 		os.Exit(1)
 	}
@@ -562,10 +646,10 @@ func main() {
 
 	tokens := make([]int, n)
 	for i := 0; i < n; i++ {
-		if i+1 < len(os.Args) {
-			val, err := strconv.Atoi(os.Args[i+1])
+		if i < len(args) {
+			val, err := strconv.Atoi(args[i])
 			if err != nil {
-				fmt.Printf("Invalid token: %s\n", os.Args[i+1])
+				fmt.Printf("Invalid token: %s\n", args[1])
 				os.Exit(1)
 			}
 			tokens[i] = val
@@ -574,7 +658,7 @@ func main() {
 		}
 	}
 
-	for t := len(os.Args) - 1; t < n; t++ {
+	for t := len(args); t < n; t++ {
 		gpt2Forward(&model, tokens, 1, t)
 		probs := model.acts.probs[(t-1)*model.config.vocabSize : t*model.config.vocabSize]
 		nextToken := sampleMult(probs, model.config.vocabSize)
