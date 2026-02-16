@@ -72,3 +72,4 @@ go.work.sum
 .env
 
 /M6/gpt/gpt2_124M.bin
+/M8/fsrecov/fsrecov.img

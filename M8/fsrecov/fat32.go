@@ -1,9 +1,5 @@
 package main
 
-import (
-	"unsafe"
-)
-
 type FAT32Header struct {
 	BS_jmpBoot     [3]byte
 	BS_OEMName     [8]byte
@@ -61,9 +57,3 @@ const (
 	ATTR_DIRECTORY = 0x10
 	ATTR_ARCHIVE   = 0x20
 )
-
-func init() {
-	if unsafe.Sizeof(FAT32Header{}) != 512 {
-		panic("FAT32Header size must be 512 bytes")
-	}
-}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -44,20 +45,29 @@ func mapDisk(fname string) ([]byte, *FAT32Header, error) {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: %s fs-image\n", os.Args[0])
-		os.Exit(1)
-	}
+	fsImage := flag.String("image", "fsrecov.img", "FAT32 file system image path")
+	flag.Parse()
 
 	os.Stdout.Sync()
 
-	data, header, err := mapDisk(os.Args[1])
+	data, header, err := mapDisk(*fsImage)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", os.Args[1], err)
+		fmt.Fprintf(os.Stderr, "%s: %v\n", *fsImage, err)
 		os.Exit(1)
 	}
+	fmt.Printf("header %+v , data size:%d\n", header, len(data))
 
 	// TODO: fsrecov implementation
-	_ = data
-	_ = header
+	//	1.扫描所有簇
 }
+
+// 扫描所有簇
+func scanClusters(data []byte, header *FAT32Header) {
+
+}
+
+// 扫描每一页，是否是目录文件或图片文件
+
+// 读取目录文件
+
+// 读取图片文件

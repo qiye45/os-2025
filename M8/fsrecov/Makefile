@@ -11,3 +11,9 @@ test:
 clean:
 	rm -f fsrecov
 	go clean -testcache
+
+mount:
+	mount fsrecov.img /mnt/
+
+umount:
+	umount mnt/
