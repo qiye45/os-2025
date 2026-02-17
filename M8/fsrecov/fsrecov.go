@@ -213,7 +213,7 @@ func decodeUTF16LE(data []byte) string {
 func recoverBMPFile(fileInfo FileInfo, clusters []ClusterInfo, header *FAT32Header, data []byte) ([]byte, error) {
 	fileData := make([]byte, 0, fileInfo.Size)
 	offset := getClusterOffset(header, int64(fileInfo.StartCluster))
-	// 策略1：假设文件连续存储
+	// 策略1：假设文件连续存储 文件准确率 47.42% 大小准确率 98.97%
 	fileData = append(fileData, data[offset:min(offset+fileInfo.Size, int64(len(data)))]...)
 	return fileData, nil
 }
@@ -247,7 +247,6 @@ func main() {
 		}
 
 		sha1sum := calculateSHA1(bmpData)
-		fmt.Printf("%s %s\n", file.Name, sha1sum)
-
+		fmt.Printf("%s %s %d\n", file.Name, sha1sum, file.Size)
 	}
 }

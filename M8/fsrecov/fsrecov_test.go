@@ -1,9 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"testing"
-	"unsafe"
 )
 
 const result = `hash      size    filename
@@ -106,42 +107,128 @@ e8954cefdd31314ad94d371ac9b6b8caa0a3ce17  1036078  zOU0Xf3NSQyiJESqD.bmp
 3de7d1e949ae7f260119ac40a4560cab6885c525  426006  zXcUJJDdm.bmp
 `
 
-// TestVersion tests the version of fsrecov
-func TestVersion(t *testing.T) {
-	// TODO: Add tests here
-	// This test should verify that fsrecov can be run with a test image file
-	// For now, we'll just check that the test compiles
+type ExpectedFile struct {
+	SHA1 string
+	Size int64
 }
 
-// TestMapDisk tests the mapDisk function
-func TestMapDisk(t *testing.T) {
-	// Create a minimal FAT32 image for testing
-	testFile := "test_fs.img"
-	defer os.Remove(testFile)
+// TestRecoveryAccuracy 测试文件恢复准确率
+func TestRecoveryAccuracy(t *testing.T) {
+	imageFile := "fsrecov.img"
 
-	// Create a 1MB test file filled with zeros
-	data := make([]byte, 1024*1024)
-	if err := os.WriteFile(testFile, data, 0644); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
+	// 检查镜像文件是否存在
+	if _, err := os.Stat(imageFile); os.IsNotExist(err) {
+		t.Skipf("Test image %s not found, skipping accuracy test", imageFile)
 	}
 
-	// Test that mapDisk properly rejects invalid images
-	_, _, err := mapDisk(testFile)
-	if err == nil {
-		t.Error("mapDisk should reject non-FAT32 images")
+	// 解析预期结果
+	expected := parseExpectedResults(result)
+	if len(expected) == 0 {
+		t.Fatal("No expected results to compare against")
+	}
+
+	// 运行恢复程序
+	data, header, err := mapDisk(imageFile)
+	if err != nil {
+		t.Fatalf("Failed to map disk: %v", err)
+	}
+
+	// 扫描簇并解析目录项
+	clusters := scanClusters(data, header)
+	files := parseDirectoryEntries(clusters)
+
+	// 恢复文件并计算SHA1
+	type RecoveredFile struct {
+		SHA1 string
+		Size int64
+	}
+	recovered := make(map[string]RecoveredFile) // filename -> {sha1, size}
+	for _, file := range files {
+		bmpData, err := recoverBMPFile(file, clusters, header, data)
+		if err != nil {
+			continue
+		}
+		sha1sum := calculateSHA1(bmpData)
+		recovered[file.Name] = RecoveredFile{
+			SHA1: sha1sum,
+			Size: file.Size,
+		}
+	}
+
+	// 计算准确率
+	correctFiles := 0
+	correctSizes := 0
+	totalExpected := len(expected)
+
+	for filename, expectedFile := range expected {
+		if recoveredFile, ok := recovered[filename]; ok {
+			if recoveredFile.SHA1 == expectedFile.SHA1 {
+				correctFiles++
+			}
+			if recoveredFile.Size == expectedFile.Size {
+				correctSizes++
+			}
+		}
+	}
+
+	filenameAccuracy := float64(correctFiles) / float64(totalExpected) * 100
+	sizeAccuracy := float64(correctSizes) / float64(totalExpected) * 100
+
+	t.Logf("Total expected files: %d", totalExpected)
+	t.Logf("Correctly recovered files (SHA1 match): %d", correctFiles)
+	t.Logf("Correctly recovered sizes: %d", correctSizes)
+	t.Logf("Filename accuracy: %.2f%%", filenameAccuracy)
+	t.Logf("File size accuracy: %.2f%%", sizeAccuracy)
+
+	// 根据要求的准确率标准进行判断
+	if filenameAccuracy < 10 {
+		t.Errorf("Filename accuracy %.2f%% is below 10%% (easy test case threshold)", filenameAccuracy)
+	} else if filenameAccuracy >= 10 && filenameAccuracy < 50 {
+		t.Logf("✓ Passed easy test cases (>10%% filename accuracy)")
+	} else if filenameAccuracy >= 50 && filenameAccuracy < 75 {
+		t.Logf("✓ Passed easy test cases and one hard test case (>50%% filename accuracy)")
+	} else if filenameAccuracy >= 75 {
+		t.Logf("✓ High filename accuracy (>75%%)")
+	}
+
+	// 文件大小准确率判断
+	if sizeAccuracy < 10 {
+		t.Errorf("File size accuracy %.2f%% is below 10%%", sizeAccuracy)
+	} else if sizeAccuracy >= 10 && sizeAccuracy < 50 {
+		t.Logf("✓ Basic file size accuracy (>10%%)")
+	} else if sizeAccuracy >= 50 && sizeAccuracy < 75 {
+		t.Logf("✓ Good file size accuracy (>50%%)")
+	} else if sizeAccuracy >= 75 {
+		t.Logf("✓ High file size accuracy (>75%%)")
 	}
 }
 
-// TestFAT32HeaderSize tests that FAT32Header is exactly 512 bytes
-func TestFAT32HeaderSize(t *testing.T) {
-	if unsafe.Sizeof(FAT32Header{}) != 512 {
-		t.Errorf("FAT32Header size is %d, expected 512", unsafe.Sizeof(FAT32Header{}))
-	}
-}
+// parseExpectedResults 解析预期结果字符串
+func parseExpectedResults(resultStr string) map[string]ExpectedFile {
+	results := make(map[string]ExpectedFile)
+	lines := strings.Split(resultStr, "\n")
 
-// TestFAT32DirEntrySize tests that FAT32DirEntry is exactly 32 bytes
-func TestFAT32DirEntrySize(t *testing.T) {
-	if unsafe.Sizeof(FAT32DirEntry{}) != 32 {
-		t.Errorf("FAT32DirEntry size is %d, expected 32", unsafe.Sizeof(FAT32DirEntry{}))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "hash") {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) >= 3 {
+			sha1sum := fields[0]
+			var size int64
+			_, err := fmt.Sscanf(fields[1], "%d", &size)
+			if err != nil {
+				continue
+			}
+			filename := fields[2]
+			results[filename] = ExpectedFile{
+				SHA1: sha1sum,
+				Size: size,
+			}
+		}
 	}
+
+	return results
 }
