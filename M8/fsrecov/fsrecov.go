@@ -102,7 +102,7 @@ func scanClusters(data []byte, header *FAT32Header) []ClusterInfo {
 
 func classifyCluster(data []byte) int {
 	// 是否BMP头
-	if len(data) >= 2 && data[0] == 0x42 && data[1] == 0x4d {
+	if len(data) >= 2 && data[0] == BMPSignature1 && data[1] == BMPSignature2 {
 		return ClusterBMPHeader
 	}
 	// 是否目录

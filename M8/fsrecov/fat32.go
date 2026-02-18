@@ -64,6 +64,17 @@ type FAT32LFNEntry struct {
 	Name3     [4]byte  // 2 chars
 }
 
+// 目录项属性
+const (
+	AttrReadOnly  = 0x01
+	AttrHidden    = 0x02
+	AttrSystem    = 0x04
+	AttrVolumeID  = 0x08
+	AttrDirectory = 0x10
+	AttrArchive   = 0x20
+	AttrLongName  = AttrReadOnly | AttrHidden | AttrSystem | AttrVolumeID
+)
+
 // BMPHeader BMP 文件头
 type BMPHeader struct {
 	Signature    uint16 // "BM"
@@ -77,13 +88,7 @@ type BMPHeader struct {
 	BitsPerPixel uint16
 }
 
-// 目录项属性
 const (
-	AttrReadOnly  = 0x01
-	AttrHidden    = 0x02
-	AttrSystem    = 0x04
-	AttrVolumeID  = 0x08
-	AttrDirectory = 0x10
-	AttrArchive   = 0x20
-	AttrLongName  = AttrReadOnly | AttrHidden | AttrSystem | AttrVolumeID
+	BMPSignature1 = 0x42 // 'B'
+	BMPSignature2 = 0x4d // 'M'
 )
